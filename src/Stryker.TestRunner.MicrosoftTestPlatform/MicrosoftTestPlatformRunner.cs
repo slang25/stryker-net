@@ -13,9 +13,12 @@ namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public sealed class MicrosoftTestPlatformRunner : ITestRunner
 {
+    private readonly string _id = Guid.NewGuid().ToString();
     private readonly TestSet _testSet = new();
     private readonly Dictionary<string, List<TestNode>> _testsByAssembly = new();
     private readonly Dictionary<string, MtpTestDescription> _testDescriptions = new();
+
+    private string ControlVariableName => $"ACTIVE_MUTATION_{_id}";
 
     public bool DiscoverTests(string assembly)
     {
@@ -221,8 +224,19 @@ public sealed class MicrosoftTestPlatformRunner : ITestRunner
         await using var output = new MemoryStream();
         var outputPipe = PipeTarget.ToStream(output);
 
+        // Determine which mutation should be active
+        // If testing a single mutant, activate it; otherwise use -1 (no mutation active)
+        var activeMutantId = mutants is { Count: 1 } ? mutants[0].Id : -1;
+
         var cliProcess = Cli.Wrap("dotnet")
             .WithWorkingDirectory(Path.GetDirectoryName(assembly) ?? string.Empty)
+            .WithEnvironmentVariables(env =>
+            {
+                // Set the indirection variable that tells MutantControl where to find the active mutation ID
+                env.Set("STRYKER_MUTANT_ID_CONTROL_VAR", ControlVariableName);
+                // Set the actual mutation ID
+                env.Set(ControlVariableName, activeMutantId.ToString());
+            })
             .WithArguments([
                 assembly,
                 "--server",
