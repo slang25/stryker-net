@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 internal sealed class ConsoleRpcListener : TraceListener
 {

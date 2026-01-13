@@ -1,6 +1,6 @@
 using CliWrap;
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public class ProcessHandle(CommandTask<CommandResult> commandTask, Stream output) : IProcessHandle
 {

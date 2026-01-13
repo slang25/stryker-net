@@ -1,5 +1,5 @@
 using System;
-using MsTestRunnerDemo.Models;
+using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 using Stryker.Abstractions.Testing;
 namespace Stryker.TestRunner.MicrosoftTestPlatform;
 

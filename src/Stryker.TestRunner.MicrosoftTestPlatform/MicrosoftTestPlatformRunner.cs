@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
 using CliWrap;
-using MsTestRunnerDemo;
-using MsTestRunnerDemo.Models;
+using Stryker.TestRunner.MicrosoftTestPlatform;
+using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 using StreamJsonRpc;
 using Stryker.Abstractions;
 using Stryker.Abstractions.Testing;

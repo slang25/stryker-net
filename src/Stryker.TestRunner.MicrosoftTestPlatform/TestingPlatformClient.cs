@@ -2,11 +2,11 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
-using MsTestRunnerDemo.Models;
+using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 using StreamJsonRpc;
 // ReSharper disable All
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public sealed class TestingPlatformClient : IDisposable
 {

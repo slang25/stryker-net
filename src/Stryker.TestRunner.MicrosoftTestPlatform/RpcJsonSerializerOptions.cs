@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public static class RpcJsonSerializerOptions
 {

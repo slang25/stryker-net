@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public class LogsCollector : ConcurrentBag<TestingPlatformClient.Log>;

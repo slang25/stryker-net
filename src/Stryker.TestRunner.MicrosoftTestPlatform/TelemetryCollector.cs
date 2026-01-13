@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-using MsTestRunnerDemo.Models;
+using Stryker.TestRunner.MicrosoftTestPlatform.Models;
 
-namespace MsTestRunnerDemo;
+namespace Stryker.TestRunner.MicrosoftTestPlatform;
 
 public class TelemetryCollector : ConcurrentBag<TelemetryPayload>;
