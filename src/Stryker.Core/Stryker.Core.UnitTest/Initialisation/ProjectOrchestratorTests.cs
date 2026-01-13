@@ -22,6 +22,7 @@ using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents;
 using Stryker.Core.ProjectComponents.SourceProjects;
 using Stryker.TestRunner.Results;
+using Stryker.TestRunner.Tests;
 using Stryker.TestRunner.VsTest;
 using Stryker.Utilities.Logging;
 

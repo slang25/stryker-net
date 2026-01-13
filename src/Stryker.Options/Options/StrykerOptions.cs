@@ -252,6 +252,11 @@ public class StrykerOptions : IStrykerOptions
     public bool BreakOnInitialTestFailure { get; set; }
 
     /// <summary>
+    /// The test runner to use for executing tests
+    /// </summary>
+    public TestRunner TestRunner { get; init; }
+
+    /// <summary>
     /// Get/set the mutation id provider
     /// </summary>
     public IProvideId MutantIdProvider {get; set;}
