@@ -21,16 +21,18 @@ public sealed class NamedPipeCoverageServer : IDisposable
 {
     private readonly ConcurrentDictionary<string, TestCoverageData> _coverageByTest = new();
     private readonly ConcurrentBag<int> _leakedMutants = new();
-    private NamedPipeServerStream? _serverStream;
+    private readonly List<Task> _connectionTasks = new();
     private CancellationTokenSource? _cts;
     private Task? _listenerTask;
     private bool _disposed;
+    private int _connectionCount;
 
     /// <summary>
     /// Gets the unique pipe name for this server instance.
     /// Test processes use this name to connect and send coverage data.
+    /// Note: Pipe name must be short to fit Unix domain socket path limits (104 chars).
     /// </summary>
-    public string PipeName { get; } = $"stryker_coverage_{Guid.NewGuid():N}";
+    public string PipeName { get; } = $"scov_{Guid.NewGuid().ToString("N")[..12]}";
 
     /// <summary>
     /// Starts listening for coverage data from test processes.
@@ -66,6 +68,25 @@ public sealed class NamedPipeCoverageServer : IDisposable
         {
             // Expected when cancelling
         }
+
+        // Wait for all connection tasks to complete
+        Task[] tasks;
+        lock (_connectionTasks)
+        {
+            tasks = _connectionTasks.ToArray();
+        }
+
+        if (tasks.Length > 0)
+        {
+            try
+            {
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancelling
+            }
+        }
     }
 
     /// <summary>
@@ -73,33 +94,87 @@ public sealed class NamedPipeCoverageServer : IDisposable
     /// </summary>
     public IEnumerable<ICoverageRunResult> GetCoverageResults()
     {
-        return _coverageByTest.Select(kvp =>
-            CoverageRunResult.Create(
-                kvp.Key,
-                CoverageConfidence.Normal,
-                kvp.Value.CoveredMutants,
-                kvp.Value.StaticMutants,
-                kvp.Value.LeakedMutants.Concat(_leakedMutants)));
+        // If we have per-test coverage, return it
+        if (_coverageByTest.Any())
+        {
+            return _coverageByTest.Select(kvp =>
+                CoverageRunResult.Create(
+                    kvp.Key,
+                    CoverageConfidence.Normal,
+                    kvp.Value.CoveredMutants,
+                    kvp.Value.StaticMutants,
+                    kvp.Value.LeakedMutants.Concat(_leakedMutants)));
+        }
+
+        // If no per-test coverage but we have leaked mutants, return a single result
+        // This happens when MTP runs all tests without per-test tracking
+        if (_leakedMutants.Any())
+        {
+            var coveredMutants = _leakedMutants.Distinct().ToList();
+
+            // Return a single "all tests" coverage result
+            // The special "_AllTests_" marker tells CoverageAnalyser to test covered mutants
+            // against all tests since we don't have per-test granularity
+            return new[]
+            {
+                CoverageRunResult.Create(
+                    "_AllTests_",
+                    CoverageConfidence.Dubious,
+                    coveredMutants,
+                    new List<int>(),  // No static tracking without per-test coverage
+                    new List<int>())
+            };
+        }
+
+        return Enumerable.Empty<ICoverageRunResult>();
     }
 
     private async Task ListenAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
         {
+            NamedPipeServerStream? serverStream = null;
             try
             {
-                _serverStream = new NamedPipeServerStream(
+                // Allow multiple server instances for concurrent test processes
+                serverStream = new NamedPipeServerStream(
                     PipeName,
                     PipeDirection.In,
-                    maxNumberOfServerInstances: 1,
+                    maxNumberOfServerInstances: NamedPipeServerStream.MaxAllowedServerInstances,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
 
-                await _serverStream.WaitForConnectionAsync(ct).ConfigureAwait(false);
+                await serverStream.WaitForConnectionAsync(ct).ConfigureAwait(false);
 
-                using var reader = new StreamReader(_serverStream, Encoding.UTF8, leaveOpen: true);
+                var connectionId = Interlocked.Increment(ref _connectionCount);
 
-                while (!ct.IsCancellationRequested && _serverStream.IsConnected)
+                // Handle this connection in a separate task so we can accept more connections
+                var connectionTask = HandleConnectionAsync(serverStream, connectionId, ct);
+                lock (_connectionTasks)
+                {
+                    _connectionTasks.Add(connectionTask);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                serverStream?.Dispose();
+                break;
+            }
+            catch (IOException)
+            {
+                serverStream?.Dispose();
+            }
+        }
+    }
+
+    private async Task HandleConnectionAsync(NamedPipeServerStream serverStream, int connectionId, CancellationToken ct)
+    {
+        try
+        {
+            using (serverStream)
+            using (var reader = new StreamReader(serverStream, Encoding.UTF8, leaveOpen: true))
+            {
+                while (!ct.IsCancellationRequested && serverStream.IsConnected)
                 {
                     var line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
                     if (line == null)
@@ -110,19 +185,14 @@ public sealed class NamedPipeCoverageServer : IDisposable
                     ProcessMessage(line);
                 }
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (IOException)
-            {
-                // Connection closed, may reconnect
-            }
-            finally
-            {
-                _serverStream?.Dispose();
-                _serverStream = null;
-            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelling
+        }
+        catch (IOException)
+        {
+            // Connection lost or error - ignore
         }
     }
 
@@ -189,9 +259,24 @@ public sealed class NamedPipeCoverageServer : IDisposable
             return;
         }
 
-        // Real-time coverage streaming - for now just track leaked mutants
-        // This could be enhanced to track per-test coverage in real-time
-        _leakedMutants.Add(message.MutantId);
+        // If we have a test ID, track coverage per test
+        if (!string.IsNullOrEmpty(message.TestId))
+        {
+            var coverageData = _coverageByTest.GetOrAdd(message.TestId, _ => new TestCoverageData());
+            if (message.IsStatic)
+            {
+                coverageData.StaticMutants.Add(message.MutantId);
+            }
+            else
+            {
+                coverageData.CoveredMutants.Add(message.MutantId);
+            }
+        }
+        else
+        {
+            // No test ID - track as leaked mutant
+            _leakedMutants.Add(message.MutantId);
+        }
     }
 
     public void Dispose()
@@ -203,7 +288,6 @@ public sealed class NamedPipeCoverageServer : IDisposable
 
         _disposed = true;
         _cts?.Cancel();
-        _serverStream?.Dispose();
         _cts?.Dispose();
     }
 

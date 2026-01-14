@@ -34,6 +34,7 @@ namespace Stryker
 
                 _initialized = true;
                 _pipeName = System.Environment.GetEnvironmentVariable("STRYKER_COVERAGE_PIPE");
+                _currentTestId = System.Environment.GetEnvironmentVariable("STRYKER_CURRENT_TEST");
 
                 if (string.IsNullOrEmpty(_pipeName))
                 {
@@ -47,7 +48,7 @@ namespace Stryker
                     _writer = new System.IO.StreamWriter(_pipe) { AutoFlush = true };
                     _connected = true;
                 }
-                catch
+                catch (System.Exception)
                 {
                     // Connection failed, coverage will be unavailable
                     _connected = false;
@@ -96,7 +97,9 @@ namespace Stryker
                 return;
             }
 
-            SendMessage("{\"type\":\"mutant_covered\",\"mutantId\":" + mutantId + ",\"isStatic\":" + (isStatic ? "true" : "false") + "}");
+            var testIdPart = string.IsNullOrEmpty(_currentTestId) ? "" : ",\"testId\":\"" + EscapeJson(_currentTestId) + "\"";
+            var message = "{\"type\":\"mutant_covered\",\"mutantId\":" + mutantId + ",\"isStatic\":" + (isStatic ? "true" : "false") + testIdPart + "}";
+            SendMessage(message);
         }
 
         /// <summary>

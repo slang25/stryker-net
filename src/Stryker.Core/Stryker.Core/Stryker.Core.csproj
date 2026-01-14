@@ -31,6 +31,7 @@
   <ItemGroup>
     <EmbeddedResource Include="InjectedHelpers\MutantControl.cs" />
     <EmbeddedResource Include="InjectedHelpers\Coverage\MutantContext.cs" />
+    <EmbeddedResource Include="InjectedHelpers\Coverage\CoverageClient.cs" />
     <EmbeddedResource Include="Reporters\Html\Files\dist\mutation-test-elements.js" />
     <EmbeddedResource Include="Reporters\Html\Files\mutation-report.html" />
   </ItemGroup>
@@ -86,6 +87,7 @@
 
   <ItemGroup>
     <Compile Remove="InjectedHelpers\Coverage\MutantContext.cs" />
+    <Compile Remove="InjectedHelpers\Coverage\CoverageClient.cs" />
     <Compile Remove="InjectedHelpers\MutantControl.cs" />
   </ItemGroup>
 

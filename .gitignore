@@ -276,6 +276,11 @@ launchSettings.json
 
 mutations/
 StrykerLogs/
+**/StrykerOutput/
+
+# Local dotnet tool manifests
+.config/
+/dotnet-tools.json
 
 #Visual studio code config
 .vscode/

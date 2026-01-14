@@ -94,6 +94,9 @@ public class FileBasedInput : IExtraData
     [JsonPropertyName("break-on-initial-test-failure")]
     public bool? BreakOnInitialTestFailure { get; init; }
 
+    [JsonPropertyName("testrunner")]
+    public string TestRunner { get; init; }
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtraData { get; init; }
 }

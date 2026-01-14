@@ -46,6 +46,9 @@ public class MutantCoveredMessage : CoverageMessage
 {
     public const string MessageType = "mutant_covered";
 
+    [JsonPropertyName("testId")]
+    public string TestId { get; init; } = string.Empty;
+
     [JsonPropertyName("mutantId")]
     public int MutantId { get; init; }
 

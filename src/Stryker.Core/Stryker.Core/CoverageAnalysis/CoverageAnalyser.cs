@@ -87,6 +87,14 @@ public class CoverageAnalyser : ICoverageAnalyser
         }
 
 
+        // Check for special "_AllTests_" marker from MTP runner without per-test coverage
+        // This marker indicates we should test covered mutants against all tests
+        var hasAllTestsMarker = dubiousTests.Contains("_AllTests_");
+        if (hasAllTestsMarker)
+        {
+            dubiousTests.Remove("_AllTests_");
+        }
+
         var allTest = TestIdentifierList.EveryTest();
         var allTestsExceptTrusted = trustedTests.Count == 0 && failedTests.Count == 0
             ? TestIdentifierList.EveryTest()
@@ -101,7 +109,7 @@ public class CoverageAnalyser : ICoverageAnalyser
         foreach (var mutant in mutantsToScan)
         {
             CoverageForThisMutant(mutant, mutationToResultMap, allTest, allTestsExceptTrusted,
-                new TestIdentifierList(dubiousTests), failedTests);
+                new TestIdentifierList(dubiousTests), failedTests, hasAllTestsMarker);
         }
     }
 
@@ -110,7 +118,8 @@ public class CoverageAnalyser : ICoverageAnalyser
         ITestIdentifiers everytest,
         ITestIdentifiers allTestsGuidsExceptTrusted,
         ITestIdentifiers dubiousTests,
-        ITestIdentifiers failedTest)
+        ITestIdentifiers failedTest,
+        bool hasAllTestsMarker)
     {
         var mutantId = mutant.Id;
         var (resultTingRequirements, testGuids) = ParseResultForThisMutant(mutationToResultMap, mutantId);
@@ -118,7 +127,15 @@ public class CoverageAnalyser : ICoverageAnalyser
         var assessingTests = testGuids.Excluding(failedTest);
         mutant.MustBeTestedInIsolation =
             resultTingRequirements.HasFlag(MutationTestingRequirements.NeedEarlyActivation);
-        if (resultTingRequirements.HasFlag(MutationTestingRequirements.AgainstAllTests))
+
+        // If "_AllTests_" marker is present and this mutant is covered, test against all tests
+        // This handles MTP coverage where we don't have per-test granularity
+        if (hasAllTestsMarker && !testGuids.IsEmpty)
+        {
+            mutant.CoveringTests = everytest;
+            mutant.AssessingTests = TestIdentifierList.EveryTest();
+        }
+        else if (resultTingRequirements.HasFlag(MutationTestingRequirements.AgainstAllTests))
         {
             mutant.CoveringTests = everytest;
             mutant.AssessingTests = TestIdentifierList.EveryTest();

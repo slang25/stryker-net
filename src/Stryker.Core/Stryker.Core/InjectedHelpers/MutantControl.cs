@@ -7,8 +7,11 @@ namespace Stryker
         private static System.Collections.Generic.List<int> _coveredStaticMutants = new System.Collections.Generic.List<int>();
         private static string envName = string.Empty;
         private static System.Object _coverageLock = new System.Object();
+        private static System.Object _initLock = new System.Object();
+        private static bool _coverageModeChecked;
 
         // this attribute will be set by the Stryker Data Collector before each test
+        // For MTP, this can also be set via STRYKER_CAPTURE_COVERAGE environment variable
         public static bool CaptureCoverage;
         public static int ActiveMutant = -2;
         public const int ActiveMutantNotInitValue = -2;
@@ -16,6 +19,8 @@ namespace Stryker
         public static void InitCoverage()
         {
             ResetCoverage();
+            // Initialize IPC coverage client for MTP support (no-op if pipe not configured)
+            CoverageClient.Initialize();
         }
 
         public static void ResetCoverage()
@@ -40,6 +45,27 @@ namespace Stryker
         // check with: Stryker.MutantControl.IsActive(ID)
         public static bool IsActive(int id)
         {
+            // Check for coverage mode via environment variable (MTP support)
+            // Use double-checked locking to handle concurrent calls from multiple threads
+            if (!_coverageModeChecked)
+            {
+                lock (_initLock)
+                {
+                    if (!_coverageModeChecked)
+                    {
+                        var coverageEnv = System.Environment.GetEnvironmentVariable("STRYKER_CAPTURE_COVERAGE");
+                        if (!string.IsNullOrEmpty(coverageEnv) && coverageEnv.Equals("true", System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Initialize first, THEN enable coverage mode to prevent race condition
+                            // where other threads see CaptureCoverage=true before connection is established
+                            InitCoverage();
+                            CaptureCoverage = true;
+                        }
+                        _coverageModeChecked = true;
+                    }
+                }
+            }
+
             if (CaptureCoverage)
             {
                 RegisterCoverage(id);
@@ -73,17 +99,20 @@ namespace Stryker
 
         private static void RegisterCoverage(int id)
         {
+            var isStatic = MutantContext.InStatic();
             lock (_coverageLock)
             {
                 if (!_coveredMutants.Contains(id))
                 {
                     _coveredMutants.Add(id);
                 }
-                if (MutantContext.InStatic() && !_coveredStaticMutants.Contains(id))
+                if (isStatic && !_coveredStaticMutants.Contains(id))
                 {
                     _coveredStaticMutants.Add(id);
                 }
             }
+            // Report coverage via IPC for MTP support (no-op if not connected)
+            CoverageClient.ReportMutantCovered(id, isStatic);
         }
     }
 }
