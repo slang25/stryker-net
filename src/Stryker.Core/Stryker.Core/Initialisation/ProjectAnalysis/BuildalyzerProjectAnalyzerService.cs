@@ -72,7 +72,7 @@ public class BuildalyzerProjectAnalyzerService : IProjectAnalyzerService
     private IAnalyzerResults RetryBuild(IProjectAnalyzer project, ProjectAnalysisRequest request,
         IAnalyzerResults buildResult, StringWriter logWriter, out bool overallSuccess)
     {
-        if (Environment.OSVersion.Platform == PlatformID.Win32NT && buildResult.Any(r => !r.IsValid() && r.TargetsFullFramework()))
+        if (Environment.OSVersion.Platform == PlatformID.Win32NT && buildResult.Any(r => !r.IsValid() && r.TargetsDesktop()))
         {
             _logger.LogWarning("Project {ProjectFilePath} analysis failed. Stryker will retry after a nuget restore.",
                 request.ProjectFilePath);

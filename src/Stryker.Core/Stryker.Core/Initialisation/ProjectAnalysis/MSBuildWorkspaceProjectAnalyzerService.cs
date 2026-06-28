@@ -92,7 +92,7 @@ public class MSBuildWorkspaceProjectAnalyzerService : IProjectAnalyzerService
                 continue;
             }
             var dto2 = new MSBuildWorkspaceAnalyzerResult(fr);
-            if (dto2.TargetsFullFramework())
+            if (dto2.TargetsDesktop())
             {
                 return true;
             }
