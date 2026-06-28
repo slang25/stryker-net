@@ -17,7 +17,9 @@ using Stryker.Abstractions;
 using Stryker.Abstractions.Exceptions;
 using Stryker.Configuration.Options;
 using Stryker.Core.Initialisation;
+using Stryker.Core.Initialisation.ProjectAnalysis;
 using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.ProjectAnalysis;
 using Stryker.Core.ProjectComponents;
 using Stryker.Core.ProjectComponents.TestProjects;
 using Stryker.Solutions;
@@ -86,7 +88,7 @@ public class InputFileResolverTests : BuildAnalyzerTestsBase
         this);
 
     private InputFileResolver BuildTestResolverWithSolutionProvider(IFileSystem fileSystem, ISolutionProvider solutionProvider)
-        => new(fileSystem, BuildalyzerProviderMock.Object, _nugetMock.Object, solutionProvider ,TestLoggerFactory.CreateLogger<InputFileResolver>());
+        => new(fileSystem, BuildProjectAnalyzerServiceFactory(_nugetMock.Object), solutionProvider, TestLoggerFactory.CreateLogger<InputFileResolver>());
 
     [TestMethod]
     [DataRow("netcoreapp2.1", FrameworkIdentifiers.NetCoreApp, "", 2, 1, 0, 0)]

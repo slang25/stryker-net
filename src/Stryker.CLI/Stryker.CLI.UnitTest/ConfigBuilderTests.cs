@@ -226,6 +226,7 @@ public class ConfigBuilderTests
         inputs.Setup(x => x.BreakOnInitialTestFailureInput).Returns(new BreakOnInitialTestFailureInput());
         inputs.Setup(x => x.OutputPathInput).Returns(new OutputPathInput());
         inputs.Setup(x => x.TestRunnerInput).Returns(new TestRunnerInput());
+        inputs.Setup(x => x.BuildAnalyzerInput).Returns(new BuildAnalyzerInput());
         inputs.Setup(x => x.S3BucketNameInput).Returns(new S3BucketNameInput());
         inputs.Setup(x => x.S3EndpointInput).Returns(new S3EndpointInput());
         inputs.Setup(x => x.S3RegionInput).Returns(new S3RegionInput());

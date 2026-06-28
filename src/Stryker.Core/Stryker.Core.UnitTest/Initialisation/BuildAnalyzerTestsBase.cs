@@ -7,8 +7,11 @@ using Buildalyzer;
 using Buildalyzer.Construction;
 using Buildalyzer.Environment;
 using Moq;
+using Stryker.Core.Initialisation;
+using Stryker.Core.Initialisation.ProjectAnalysis;
 using Stryker.Solutions;
 using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.ProjectAnalysis;
 
 namespace Stryker.Core.UnitTest.Initialisation;
 
@@ -321,6 +324,25 @@ public class BuildAnalyzerTestsBase : TestBase, ISolutionProvider
         BuildalyzerProviderMock.Setup(x => x.Provide(It.IsAny<AnalyzerManagerOptions>()))
             .Returns(buildalyzerAnalyzerManagerMock.Object);
         return buildalyzerAnalyzerManagerMock;
+    }
+
+    /// <summary>
+    /// Builds an <see cref="IProjectAnalyzerServiceFactory"/> that wires the BuildalyzerProviderMock
+    /// into a real BuildalyzerProjectAnalyzerService. Returns the same factory shape used by
+    /// production DI so InputFileResolver tests can keep using the existing mock setup.
+    /// </summary>
+    protected IProjectAnalyzerServiceFactory BuildProjectAnalyzerServiceFactory(INugetRestoreProcess nugetRestoreProcess)
+    {
+        var buildalyzerService = new BuildalyzerProjectAnalyzerService(
+            BuildalyzerProviderMock.Object,
+            nugetRestoreProcess,
+            TestLoggerFactory.CreateLogger<BuildalyzerProjectAnalyzerService>());
+        var hostManager = new MSBuildHostProcessManager(TestLoggerFactory.CreateLogger<MSBuildHostProcessManager>());
+        var msbuildWorkspaceService = new MSBuildWorkspaceProjectAnalyzerService(
+            hostManager,
+            nugetRestoreProcess,
+            TestLoggerFactory.CreateLogger<MSBuildWorkspaceProjectAnalyzerService>());
+        return new ProjectAnalyzerServiceFactory(buildalyzerService, msbuildWorkspaceService);
     }
 
     public SolutionFile GetSolution(string solutionPath)

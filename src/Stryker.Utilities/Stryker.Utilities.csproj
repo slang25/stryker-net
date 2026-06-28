@@ -10,11 +10,13 @@
     <PackageReference Include="ResXResourceReader.NetStandard" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
+    <PackageReference Include="StreamJsonRpc" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Stryker.Abstractions\Stryker.Abstractions.csproj" />
+    <ProjectReference Include="..\Stryker.MSBuildHost.Contracts\Stryker.MSBuildHost.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

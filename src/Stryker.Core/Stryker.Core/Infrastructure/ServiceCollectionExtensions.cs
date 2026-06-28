@@ -4,10 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Stryker.Core.CoverageAnalysis;
 using Stryker.Core.Helpers.ProcessUtil;
 using Stryker.Core.Initialisation;
+using Stryker.Core.Initialisation.ProjectAnalysis;
 using Stryker.Core.MutationTest;
 using Stryker.Core.Reporters;
 using Stryker.Solutions;
 using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.ProjectAnalysis;
 
 namespace Stryker.Core.Infrastructure;
 
@@ -42,6 +44,10 @@ public static class ServiceCollectionExtensions
         // Helpers and utilities - Transient or Singleton based on state
         services.AddTransient<IProcessExecutor, ProcessExecutor>();
         services.AddTransient<IBuildalyzerProvider, BuildalyzerProvider>();
+        services.AddTransient<BuildalyzerProjectAnalyzerService>();
+        services.AddSingleton<MSBuildHostProcessManager>();
+        services.AddTransient<MSBuildWorkspaceProjectAnalyzerService>();
+        services.AddTransient<IProjectAnalyzerServiceFactory, ProjectAnalyzerServiceFactory>();
         services.AddSingleton<IFileSystem, FileSystem>();
 
         // Reporter factory - Singleton as it's stateless

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- Directory.Build.props sets a singular TargetFramework; clear it so TargetFrameworks wins. -->
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>net472;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- We never ship Microsoft.Build assemblies; MSBuildLocator resolves them at runtime
+         from the installed SDK / VS install. ExcludeAssets=runtime keeps them out of bin
+         and deps.json. -->
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <UseAppHost>false</UseAppHost>
+    <SelfContained>false</SelfContained>
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net472'">
+    <!-- net472 emits an apphost exe (the default on .NET Framework). The MSBuildLocator inside
+         the host registers the highest installed VS MSBuild on the machine. macOS/Linux can
+         build but never launch this variant — only used for .NET Framework projects on Windows. -->
+    <UseAppHost>true</UseAppHost>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Microsoft.Build.* packages: compile-time refs only. MSBuildLocator injects the SDK's
+         v17+ implementations at runtime; shipping the v15.1-assembly-version impls from these
+         packages would mask them and crash with missing-type errors (IEventSource5 etc). -->
+    <PackageReference Include="Microsoft.Build" ExcludeAssets="runtime" NoWarn="NU1903" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" ExcludeAssets="runtime" NoWarn="NU1903" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="runtime" NoWarn="NU1903" />
+    <PackageReference Include="Microsoft.Build.Locator" />
+    <PackageReference Include="StreamJsonRpc" />
+    <PackageReference Include="Nerdbank.Streams" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Stryker.MSBuildHost.Contracts\Stryker.MSBuildHost.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

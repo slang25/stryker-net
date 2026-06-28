@@ -273,6 +273,11 @@ public class StrykerOptions : IStrykerOptions
     public TestRunner TestRunner { get; init; }
 
     /// <summary>
+    /// Which backend to use for analyzing the project under test (Buildalyzer or MSBuildWorkspace).
+    /// </summary>
+    public BuildAnalyzer BuildAnalyzer { get; init; }
+
+    /// <summary>
     /// Get/set the mutation id provider
     /// </summary>
     public IProvideId MutantIdProvider {get; set;}

@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Buildalyzer;
-using Buildalyzer.Environment;
 using Microsoft.Extensions.Logging;
 using Stryker.Abstractions;
 using Stryker.Abstractions.Exceptions;
@@ -16,6 +15,7 @@ using Stryker.Core.ProjectComponents.SourceProjects;
 using Stryker.Core.ProjectComponents.TestProjects;
 using Stryker.Solutions;
 using Stryker.Utilities.Buildalyzer;
+using Stryker.Utilities.ProjectAnalysis;
 
 namespace Stryker.Core.Initialisation;
 
@@ -35,23 +35,20 @@ public class InputFileResolver : IInputFileResolver
 {
     private readonly string[] _foldersToExclude = ["obj", "bin", "node_modules", "StrykerOutput"];
     private readonly ILogger _logger;
-    private readonly IBuildalyzerProvider _analyzerProvider;
+    private readonly IProjectAnalyzerServiceFactory _projectAnalyzerServiceFactory;
     private readonly ISolutionProvider _solutionProvider;
     private static readonly HashSet<string> ImportantProperties =
         ["Configuration", "Platform", "AssemblyName", "Configurations"];
 
-    private readonly INugetRestoreProcess _nugetRestoreProcess;
     private readonly ConcurrentDictionary<string, string> _buildLogs = new();
 
     public InputFileResolver(IFileSystem fileSystem,
-        IBuildalyzerProvider analyzerProvider,
-        INugetRestoreProcess nugetRestoreProcess,
+        IProjectAnalyzerServiceFactory projectAnalyzerServiceFactory,
         ISolutionProvider solutionProvider,
         ILogger<InputFileResolver> logger)
     {
         FileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-        _analyzerProvider = analyzerProvider ?? throw new ArgumentNullException(nameof(analyzerProvider));
-        _nugetRestoreProcess = nugetRestoreProcess ?? throw new ArgumentNullException(nameof(nugetRestoreProcess));
+        _projectAnalyzerServiceFactory = projectAnalyzerServiceFactory ?? throw new ArgumentNullException(nameof(projectAnalyzerServiceFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _solutionProvider = solutionProvider ?? throw new ArgumentNullException(nameof(solutionProvider));
     }
@@ -333,8 +330,7 @@ public class InputFileResolver : IInputFileResolver
     {
         var mutableProjectsAnalyzerResults = new ConcurrentBag<(IEnumerable<IAnalyzerResult> result, bool isTest)>();
         var list = new DynamicEnumerableQueue<(string projectFile, string framework, string configuration, string platform)>(projects);
-        const string Configuration = "Configuration";
-        const string Platform = "Platform";
+        var analyzerService = _projectAnalyzerServiceFactory.Create(options.BuildAnalyzer);
         try
         {
             var parallelOptions = new ParallelOptions
@@ -344,25 +340,21 @@ public class InputFileResolver : IInputFileResolver
                 Parallel.ForEach(list.Consume(),
                     parallelOptions, entry =>
                     {
-                        var logger = new StringWriter();
-                        var manager = _analyzerProvider.Provide(new AnalyzerManagerOptions { LogWriter = logger });
+                        var request = new ProjectAnalysisRequest(
+                            entry.projectFile,
+                            entry.framework,
+                            entry.configuration,
+                            entry.platform,
+                            options.MsBuildPath,
+                            options.SolutionPath,
+                            options.DiagMode);
 
-                        // specify configuration if any provided
-                        if (!string.IsNullOrEmpty(entry.configuration))
-                        {
-                            manager.SetGlobalProperty(Configuration, entry.configuration);
-                        }
-
-                        // specify platform if any provided
-                        if (!string.IsNullOrEmpty(entry.platform))
-                        {
-                            manager.SetGlobalProperty(Platform, entry.platform);
-                        }
-
-                        var buildResult = AnalyzeThisProject(manager.GetProject(entry.projectFile),
+                        var outcome = analyzerService.AnalyzeProject(request);
+                        var buildResult = AnalyzeThisProject(
+                            entry.projectFile,
                             entry.framework,
                             normalizedProjectUnderTestNameFilter,
-                            logger,
+                            outcome,
                             options,
                             mutableProjectsAnalyzerResults);
                         // scan references if recursive scan is enabled
@@ -379,19 +371,44 @@ public class InputFileResolver : IInputFileResolver
         return mutableProjectsAnalyzerResults;
     }
 
-    private IEnumerable<IAnalyzerResult> AnalyzeThisProject(IProjectAnalyzer project,
+    private IEnumerable<IAnalyzerResult> AnalyzeThisProject(string projectFile,
         string framework,
         string normalizedProjectUnderTestNameFilter,
-        StringWriter buildLogger,
+        ProjectAnalysisOutcome outcome,
         IStrykerOptions options,
         ConcurrentBag<(IEnumerable<IAnalyzerResult> result, bool isTest)> mutableProjectsAnalyzerResults)
     {
-        IEnumerable<IAnalyzerResult> buildResult = AnalyzeSingleProject(project, buildLogger, options);
+        var projectLogName = FileSystem.Path.GetRelativePath(options.WorkingDirectory, projectFile);
+        _logger.LogDebug("Analyzing {ProjectFilePath}", projectLogName);
+
+        _buildLogs[projectLogName] = outcome.BuildLog ?? string.Empty;
+        LogAnalyzerResult(outcome.Results, options);
+
+        IEnumerable<IAnalyzerResult> buildResult = outcome.Results;
         if (!buildResult.Any())
         {
+            _logger.LogWarning("Analysis of project {ProjectFilePath} returned no results.", projectLogName);
             mutableProjectsAnalyzerResults.Add((buildResult, false));
-            // analysis failed
             return buildResult;
+        }
+
+        if (outcome.OverallSuccess)
+        {
+            _logger.LogDebug("Analysis of project {projectFilePath} succeeded.", projectLogName);
+        }
+        else
+        {
+            var failedFrameworks = outcome.Results
+                .Where(r => !r.IsValid())
+                .Select(r => r.TargetFramework)
+                .ToList();
+            _logger.LogWarning("Analysis of project {ProjectFilePath} failed for frameworks {FrameworkList}.",
+                projectLogName, string.Join(',', failedFrameworks));
+
+            if (options.DiagMode)
+            {
+                _logger.LogWarning("Project analysis failed. The MsBuild log: {BuildLog}", outcome.BuildLog);
+            }
         }
 
         var isTestProject = buildResult.IsTestProject();
@@ -403,7 +420,7 @@ public class InputFileResolver : IInputFileResolver
 
         // apply project name filter (except for test projects)
         if (isTestProject || normalizedProjectUnderTestNameFilter == null ||
-            project.ProjectFile.Path.Replace('\\', '/')
+            projectFile.Replace('\\', '/')
                 .Contains(normalizedProjectUnderTestNameFilter,
                     StringComparison.InvariantCultureIgnoreCase))
         {
@@ -435,100 +452,7 @@ public class InputFileResolver : IInputFileResolver
         return referencesToAdd;
     }
 
-    private IAnalyzerResults AnalyzeSingleProject(IProjectAnalyzer project, StringWriter buildLogger, IStrykerOptions options)
-    {
-        var projectLogName = FileSystem.Path.GetRelativePath(options.WorkingDirectory, project.ProjectFile.Path);
-        _logger.LogDebug("Analyzing {ProjectFilePath}", projectLogName);
-
-        var env = new EnvironmentOptions();
-
-        if (!string.IsNullOrEmpty(options.MsBuildPath))
-        {
-            // we need to forward this path to buildalyzer
-            env.EnvironmentVariables[EnvironmentVariables.MSBUILD_EXE_PATH] = options.MsBuildPath;
-        }
-
-        var buildResult = project.Build(env);
-        // store the build log
-        _buildLogs[projectLogName] = buildLogger.ToString();
-        // clear the log
-        buildLogger.GetStringBuilder().Clear();
-
-        var buildResultOverallSuccess = buildResult.OverallSuccess || Array.
-            TrueForAll(project.ProjectFile.TargetFrameworks, tf =>
-            buildResult.Any(br => br.IsValidFor(tf)));
-
-        if (!buildResultOverallSuccess)
-        {
-            if (options.DiagMode)
-            {
-                _logger.LogWarning("Project {ProjectFilePath} analysis failed. The MsBuild log is: {Log}", projectLogName, _buildLogs[projectLogName]);
-            }
-
-            // if this is a full framework project, we can retry after a nuget restore
-            buildResult = RetryBuild(project, options, projectLogName, buildResult, out buildResultOverallSuccess);
-        }
-
-        LogAnalyzerResult(buildResult, options);
-        if (buildResultOverallSuccess)
-        {
-            _logger.LogDebug("Analysis of project {projectFilePath} succeeded.", projectLogName);
-            return buildResult;
-        }
-
-        // log failure details
-        var failedFrameworks = project.ProjectFile.TargetFrameworks.Where(tf =>
-            !buildResult.Any(br => br.IsValidFor(tf))).ToList();
-        _logger.LogWarning(
-            "Analysis of project {ProjectFilePath} failed for frameworks {FrameworkList}.",
-            projectLogName, string.Join(',', failedFrameworks));
-
-        if (options.DiagMode)
-        {
-            _logger.LogWarning("Project analysis failed. The MsBuild log: {BuildLog}", buildLogger.ToString());
-        }
-
-        return buildResult;
-    }
-
-    private IAnalyzerResults RetryBuild(IProjectAnalyzer project, IStrykerOptions options, string projectLogName,
-        IAnalyzerResults buildResult, out bool buildResultOverallSuccess)
-    {
-        if (Environment.OSVersion.Platform == PlatformID.Win32NT && buildResult.Any(r => !r.IsValid() && r.TargetsDesktop()))
-        {
-            _logger.LogWarning("Project {projectFilePath} analysis failed. Stryker will retry after a nuget restore.", projectLogName);
-
-            if (options.DiagMode)
-            {
-                _logger.LogWarning("The MsBuild log is below.");
-                _logger.LogInformation(_buildLogs[projectLogName]);
-            }
-
-            _nugetRestoreProcess.RestorePackages(options.SolutionPath, options.MsBuildPath ?? buildResult.First().MsBuildPath());
-        }
-        var buildOptions = new EnvironmentOptions
-        {
-            Restore = true
-        };
-        // retry the analysis
-        buildResult = project.Build(buildOptions);
-
-        // check the new status
-        buildResultOverallSuccess = project.ProjectFile.TargetFrameworks.Length > 0 &&
-            Array.TrueForAll(project.ProjectFile.TargetFrameworks, tf =>
-            buildResult.Any(br => br.IsValidFor(tf)));
-
-        if (!buildResultOverallSuccess && !string.IsNullOrEmpty(options.TargetFramework))
-        {
-            // still failed, we can try using target framework option
-            buildResult = project.Build(options.TargetFramework);
-            buildResultOverallSuccess = buildResult.Any( br => br.IsValidFor(options.TargetFramework));
-        }
-
-        return buildResult;
-    }
-
-    private void LogAnalyzerResult(IAnalyzerResults analyzerResults, IStrykerOptions options)
+    private void LogAnalyzerResult(IReadOnlyCollection<IAnalyzerResult> analyzerResults, IStrykerOptions options)
     {
         // do not log if trace is not enabled
         if (!_logger.IsEnabled(LogLevel.Trace) || !options.DiagMode)

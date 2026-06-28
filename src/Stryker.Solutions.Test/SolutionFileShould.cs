@@ -96,6 +96,8 @@ public sealed class SolutionFileShould
             Path.Combine("Stryker.RegexMutators", "Stryker.RegexMutators.UnitTest", "Stryker.RegexMutators.UnitTest.csproj"),
             Path.Combine("Stryker.Abstractions", "Stryker.Abstractions.csproj"),
             Path.Combine("Stryker.Configuration", "Stryker.Configuration.csproj"),
+            Path.Combine("Stryker.MSBuildHost", "Stryker.MSBuildHost.csproj"),
+            Path.Combine("Stryker.MSBuildHost.Contracts", "Stryker.MSBuildHost.Contracts.csproj"),
             Path.Combine("Stryker.Utilities", "Stryker.Utilities.csproj"),
             Path.Combine("Stryker.TestRunner", "Stryker.TestRunner.csproj"),
             Path.Combine("Stryker.TestRunner.VsTest", "Stryker.TestRunner.VsTest.csproj"),

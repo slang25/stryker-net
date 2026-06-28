@@ -70,6 +70,7 @@ public static class FileConfigReader
         inputs.TestProjectsInput.SuppliedInput = config.TestProjects;
         inputs.TestCaseFilterInput.SuppliedInput = config.TestCaseFilter;
         inputs.TestRunnerInput.SuppliedInput = config.TestRunner;
+        inputs.BuildAnalyzerInput.SuppliedInput = config.BuildAnalyzer;
         inputs.DashboardUrlInput.SuppliedInput = config.DashboardUrl;
         inputs.IgnoreMutationsInput.SuppliedInput = config.IgnoreMutations;
         inputs.IgnoredMethodsInput.SuppliedInput = config.IgnoreMethods;

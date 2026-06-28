@@ -85,6 +85,9 @@ public class FileBasedInput : IExtraData
     [JsonPropertyName("test-runner")]
     public string TestRunner { get; init; }
 
+    [JsonPropertyName("build-analyzer")]
+    public string BuildAnalyzer { get; init; }
+
     [JsonPropertyName("ignore-mutations")]
     public string[] IgnoreMutations { get; init; }
 

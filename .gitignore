@@ -292,3 +292,4 @@ StrykerLogs/
 .DS_Store
 .nuget/
 actionlint
+**/*.lscache

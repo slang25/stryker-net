@@ -43,4 +43,55 @@
     <None Include="..\..\..\README.md" Pack="true" PackagePath="" Visible="false" />
     <None Include="..\..\..\docs\images\stryker-80x80.png" Pack="true" PackagePath="" Visible="false" />
   </ItemGroup>
+
+  <!--
+    Build Stryker.MSBuildHost (once per TFM) and copy outputs into BuildHost-netcore/ and
+    BuildHost-net472/ next to this project's bin (and into the packed dotnet-stryker tool).
+    The host process is spawned from there at runtime by MSBuildHostProcessManager based on
+    project kind (SDK-style csproj → netcore; legacy → net472, Windows-only).
+    Modelled on Roslyn's DeployNetFrameworkBuildHost target.
+  -->
+  <Target Name="DeployStrykerMSBuildHost"
+          BeforeTargets="AssignTargetPaths;_GetPackageFiles"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+
+    <!-- netcore variant: built for net8.0, dispatched via `dotnet <host.dll>`. -->
+    <MSBuild Projects="..\..\Stryker.MSBuildHost\Stryker.MSBuildHost.csproj"
+             Targets="Build;BuiltProjectOutputGroup;ReferenceCopyLocalPathsOutputGroup"
+             Properties="TargetFramework=net8.0">
+      <Output TaskParameter="TargetOutputs" ItemName="_NetCoreHostAssetsRaw" />
+    </MSBuild>
+
+    <!-- net472 variant: built as an exe apphost, dispatched directly on Windows. -->
+    <MSBuild Projects="..\..\Stryker.MSBuildHost\Stryker.MSBuildHost.csproj"
+             Targets="Build;BuiltProjectOutputGroup;ReferenceCopyLocalPathsOutputGroup"
+             Properties="TargetFramework=net472">
+      <Output TaskParameter="TargetOutputs" ItemName="_Net472HostAssetsRaw" />
+    </MSBuild>
+
+    <!-- Filter Microsoft.Build.* (except Locator). They get loaded from the SDK / VS at
+         runtime via MSBuildLocator; shipping the compile-time copies breaks the load. -->
+    <ItemGroup>
+      <_NetCoreHostAssets Include="@(_NetCoreHostAssetsRaw)"
+                          Condition="!($([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Build.')) and '%(Filename)' != 'Microsoft.Build.Locator')" />
+      <_Net472HostAssets Include="@(_Net472HostAssetsRaw)"
+                         Condition="!($([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Build.')) and '%(Filename)' != 'Microsoft.Build.Locator')" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="%(_NetCoreHostAssets.Identity)"
+               Condition="'%(_NetCoreHostAssets.TargetPath)' != '' and '%(_NetCoreHostAssets.Extension)' != '.xml'"
+               TargetPath="BuildHost-netcore/%(_NetCoreHostAssets.TargetPath)"
+               PackagePath="tools/$(TargetFramework)/any/BuildHost-netcore/%(_NetCoreHostAssets.TargetPath)"
+               CopyToOutputDirectory="PreserveNewest"
+               PackageCopyToOutput="true" />
+
+      <Content Include="%(_Net472HostAssets.Identity)"
+               Condition="'%(_Net472HostAssets.TargetPath)' != '' and '%(_Net472HostAssets.Extension)' != '.xml'"
+               TargetPath="BuildHost-net472/%(_Net472HostAssets.TargetPath)"
+               PackagePath="tools/$(TargetFramework)/any/BuildHost-net472/%(_Net472HostAssets.TargetPath)"
+               CopyToOutputDirectory="PreserveNewest"
+               PackageCopyToOutput="true" />
+    </ItemGroup>
+  </Target>
 </Project>

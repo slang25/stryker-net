@@ -20,6 +20,8 @@ using Stryker.Abstractions.Reporting;
 using Stryker.Abstractions.Testing;
 using Stryker.Configuration.Options;
 using Stryker.Core.Initialisation;
+using Stryker.Core.Initialisation.ProjectAnalysis;
+using Stryker.Utilities.ProjectAnalysis;
 using Stryker.Core.MutationTest;
 using Stryker.Core.ProjectComponents;
 using Stryker.Core.ProjectComponents.SourceProjects;
@@ -225,8 +227,8 @@ public class ProjectOrchestratorTests : BuildAnalyzerTestsBase
             var initialTestProcessMock = new Mock<IInitialTestProcess>();
             initialTestProcessMock.Setup(x => x.InitialTestAsync(It.IsAny<IStrykerOptions>(), It.IsAny<SourceProjectInfo>(), It.IsAny<ITestRunner>()))
                 .Returns(Task.FromResult(new InitialTestRun(new TestRunResult(true), new TimeoutValueCalculator(500))));
-            var inputFileResolver = new InputFileResolver(FileSystem, BuildalyzerProviderMock.Object,
-                nugetRestoreMock.Object, this,
+            var inputFileResolver = new InputFileResolver(FileSystem,
+                BuildProjectAnalyzerServiceFactory(nugetRestoreMock.Object), this,
                 TestLoggerFactory.CreateLogger<InputFileResolver>());
             var initialisationProcess = new InitialisationProcess(inputFileResolver, initialBuildProcessMock.Object, initialTestProcessMock.Object, TestLoggerFactory.CreateLogger<InitialisationProcess>());
 
@@ -489,8 +491,8 @@ public class ProjectOrchestratorTests : BuildAnalyzerTestsBase
         var initialTestProcessMock = new Mock<IInitialTestProcess>();
         initialTestProcessMock.Setup(x => x.InitialTestAsync(It.IsAny<IStrykerOptions>(), It.IsAny<SourceProjectInfo>(), It.IsAny<ITestRunner>()))
             .ReturnsAsync(new InitialTestRun(new TestRunResult(true), new TimeoutValueCalculator(500)));
-        var inputFileResolver = new InputFileResolver(FileSystem, BuildalyzerProviderMock.Object,
-            new Mock<INugetRestoreProcess>().Object,
+        var inputFileResolver = new InputFileResolver(FileSystem,
+            BuildProjectAnalyzerServiceFactory(new Mock<INugetRestoreProcess>().Object),
             this,
             TestLoggerFactory.CreateLogger<InputFileResolver>());
         var initialisationProcess = new InitialisationProcess(inputFileResolver, initialBuildProcessMock.Object, initialTestProcessMock.Object, TestLoggerFactory.CreateLogger<InitialisationProcess>());

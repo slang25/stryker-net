@@ -16,6 +16,7 @@ public interface IStrykerOptions
     string S3Region { get; init; }
     BaselineProvider BaselineProvider { get; init; }
     bool BreakOnInitialTestFailure { get; set; }
+    BuildAnalyzer BuildAnalyzer { get; init; }
     int Concurrency { get; init; }
     string Configuration { get; init; }
     string DashboardApiKey { get; init; }
